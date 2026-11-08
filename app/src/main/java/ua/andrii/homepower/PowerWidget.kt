@@ -27,51 +27,70 @@ class PowerWidget : AppWidgetProvider() {
         const val ACTION_REFRESH = "ua.andrii.homepower.REFRESH"
         private const val ACTIVE = 30 // W — поріг, щоб вважати джерело активним
 
+        private fun ids(ctx: Context): IntArray =
+            AppWidgetManager.getInstance(ctx).getAppWidgetIds(ComponentName(ctx, PowerWidget::class.java))
+
         fun refresh(ctx: Context, pending: PendingResult?) {
             val app = ctx.applicationContext
-            val mgr = AppWidgetManager.getInstance(app)
-            val ids = mgr.getAppWidgetIds(ComponentName(app, PowerWidget::class.java))
-            if (ids.isEmpty()) { pending?.finish(); return }
-
-            mgr.partiallyUpdateAppWidget(ids, RemoteViews(app.packageName, R.layout.widget_power).apply {
-                setTextViewText(R.id.updated, "⟳ оновлюю…")
-            })
-
+            if (ids(app).isEmpty()) { pending?.finish(); return }
+            AppWidgetManager.getInstance(app).partiallyUpdateAppWidget(ids(app),
+                RemoteViews(app.packageName, R.layout.widget_power).apply { setTextViewText(R.id.updated, "⟳ оновлюю…") })
             Thread {
-                val views = RemoteViews(app.packageName, R.layout.widget_power)
-                views.setOnClickPendingIntent(R.id.root, PendingIntent.getBroadcast(
-                    app, 0, Intent(app, PowerWidget::class.java).setAction(ACTION_REFRESH),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
-                val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                 try {
                     if (!Prefs(app).configured) throw IllegalStateException("налаштуй застосунок")
-                    render(views, Deye.read(app), time)
-                    mgr.updateAppWidget(ids, views)
+                    show(app, Deye.read(app))
                 } catch (e: Exception) {
-                    // залишаємо останні цифри, міняємо тільки статус
-                    views.setTextViewText(R.id.updated, "⚠ $time · ${e.message ?: "немає зв'язку"}")
-                    mgr.partiallyUpdateAppWidget(ids, views)
+                    showError(app, e.message ?: "немає зв'язку")
                 } finally {
                     pending?.finish()
                 }
             }.start()
         }
 
-        private fun render(v: RemoteViews, r: Reading, time: String) {
-            v.setTextViewText(R.id.updated, "⟳ $time")
+        /** Малює свіжі дані на всіх віджетах (викликається і з фонового моніторингу). */
+        fun show(ctx: Context, r: Reading) {
+            val app = ctx.applicationContext
+            val ids = ids(app); if (ids.isEmpty()) return
+            val v = base(app)
+            v.setTextViewText(R.id.updated, "⟳ ${now()}")
             v.setProgressBar(R.id.battBar, 100, r.soc.coerceIn(0, 100), false)
             v.setTextViewText(R.id.soc, "${r.soc}%")
             v.setTextViewText(R.id.load, r.loadW.toString())
             v.setTextViewText(R.id.pv, if (r.pvW > 0) "☀ ${kw(r.pvW)}" else "")
+            v.setTextViewText(R.id.runtime, Fmt.battery(r, Prefs(app).minSoc))
             when {
                 r.battW > ACTIVE -> { v.setTextViewText(R.id.battStatus, "Розряд ${r.battW} W"); v.setTextColor(R.id.battStatus, Color.parseColor("#5AA9FF")) }
                 r.battW < -ACTIVE -> { v.setTextViewText(R.id.battStatus, "Заряд ${-r.battW} W"); v.setTextColor(R.id.battStatus, Color.parseColor("#34D399")) }
                 else -> { v.setTextViewText(R.id.battStatus, "Батарея в спокої"); v.setTextColor(R.id.battStatus, Color.parseColor("#9CA3AF")) }
             }
-            chip(v, R.id.chipGrid, abs(r.gridW) > ACTIVE)
+            if (r.gridOn) {
+                v.setTextViewText(R.id.chipGrid, "Grid")
+                chip(v, R.id.chipGrid, abs(r.gridW) > ACTIVE)
+            } else {
+                v.setTextViewText(R.id.chipGrid, "Нема мережі")
+                v.setInt(R.id.chipGrid, "setBackgroundResource", R.drawable.chip_alert)
+                v.setTextColor(R.id.chipGrid, Color.parseColor("#3B0A0A"))
+            }
             chip(v, R.id.chipGen, abs(r.genW) > ACTIVE)
             chip(v, R.id.chipBatt, r.battW > ACTIVE)
+            AppWidgetManager.getInstance(app).updateAppWidget(ids, v)
         }
+
+        fun showError(ctx: Context, msg: String) {
+            val app = ctx.applicationContext
+            val ids = ids(app); if (ids.isEmpty()) return
+            val v = base(app)
+            v.setTextViewText(R.id.updated, "⚠ ${now()} · $msg")
+            AppWidgetManager.getInstance(app).partiallyUpdateAppWidget(ids, v)
+        }
+
+        private fun base(app: Context) = RemoteViews(app.packageName, R.layout.widget_power).apply {
+            setOnClickPendingIntent(R.id.root, PendingIntent.getBroadcast(
+                app, 0, Intent(app, PowerWidget::class.java).setAction(ACTION_REFRESH),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+        }
+
+        private fun now() = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
 
         private fun chip(v: RemoteViews, id: Int, on: Boolean) {
             v.setInt(id, "setBackgroundResource", if (on) R.drawable.chip_on else R.drawable.chip_off)

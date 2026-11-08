@@ -84,6 +84,15 @@
             android:textColor="#5AA9FF"
             android:textSize="14sp"
             android:textStyle="bold" />
+        <TextView
+            android:id="@+id/runtime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text=""
+            android:textColor="#D1D5DB"
+            android:textSize="12sp" />
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
