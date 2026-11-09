@@ -24,6 +24,7 @@ class MonitorService : Service() {
         private const val ID_ONGOING = 1
         private const val ID_GRID = 2
         private const val INTERVAL_MS = 30_000L
+        private const val HUB_INTERVAL_MS = 5_000L
 
         fun start(ctx: Context) {
             val i = Intent(ctx, MonitorService::class.java)
@@ -46,7 +47,7 @@ class MonitorService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createChannels(this)
-        val n = ongoing("Стежу за світлом")
+        val n = ongoing(if (Prefs(this).hub) "Домашній хаб: передаю дані в хмару" else "Стежу за світлом")
         if (Build.VERSION.SDK_INT >= 34) startForeground(ID_ONGOING, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         else startForeground(ID_ONGOING, n)
         if (!running) {
@@ -67,16 +68,24 @@ class MonitorService : Service() {
 
     private fun loop() {
         while (running) {
+            val p = Prefs(this)
             try {
-                val r = Deye.read(this)
-                GridTracker.observe(this, r.gridOn)?.let { alert(r, it.gridOn, it.previousSince) }
-                PowerWidget.show(this, r)
+                if (p.hub) {
+                    // Хаб: читаємо інвертор напряму і відправляємо знімок у хмару
+                    val r = Deye.readLocal(this)
+                    if (p.cloudReady) runCatching { Cloud.push(p, r) }
+                    PowerWidget.show(this, r)
+                } else {
+                    val r = Deye.read(this)
+                    if (!r.stale && p.monitor) GridTracker.observe(this, r.gridOn)?.let { alert(r, it.gridOn, it.previousSince) }
+                    PowerWidget.show(this, r)
+                }
             } catch (e: InterruptedException) {
                 break
             } catch (e: Exception) {
                 // поза домашньою мережею — тихо чекаємо наступного опитування
             }
-            try { Thread.sleep(INTERVAL_MS) } catch (e: InterruptedException) { break }
+            try { Thread.sleep(if (p.hub) HUB_INTERVAL_MS else INTERVAL_MS) } catch (e: InterruptedException) { break }
         }
     }
 

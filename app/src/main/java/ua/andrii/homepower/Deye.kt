@@ -6,7 +6,14 @@ import kotlin.math.max
 data class Reading(
     val soc: Int, val battW: Int, val gridW: Int, val genW: Int, val loadW: Int, val pvW: Int,
     val gridV: Double, val battV: Double, val capAh: Int,
+    /** Коли знято дані (мс); з хмари — час на хабі. */
+    val time: Long = System.currentTimeMillis(),
+    /** true — дані прийшли з хмари (хаб удома), а не напряму з інвертора. */
+    val fromCloud: Boolean = false,
 ) {
+    val ageSec get() = (System.currentTimeMillis() - time) / 1000
+    /** Хмарні дані старші за 2 хв — хаб, найімовірніше, офлайн. */
+    val stale get() = ageSec > 120
     val gridOn get() = gridV >= 150.0
     /** Повна ємність батареї, кВт·год (за номінальною напругою LiFePO4 16S — 51.2 V). */
     val fullKWh get() = capAh * 51.2 / 1000.0
@@ -30,12 +37,25 @@ object Deye {
     private const val COUNT = 41 // 150..190
     private const val REG_CAPACITY = 102 // ємність батареї, Ah
 
+    /** Спершу напряму з інвертора; якщо не вдалось (поза домом) — з хмари від хаба. */
     fun read(ctx: Context): Reading {
         val p = Prefs(ctx)
-        val r = regs(p, START, COUNT)
+        if (p.hub || !p.cloudReady) return readLocal(ctx)
+        return try {
+            readLocal(ctx, timeoutMs = 1500)
+        } catch (local: Exception) {
+            val r = try { Cloud.fetch(p) } catch (e: Exception) { throw java.io.IOException("ні вдома, ні в хмарі: ${e.message}") }
+            if (p.capOverride > 0) r.copy(capAh = p.capOverride) else r
+        }
+    }
+
+    fun readLocal(ctx: Context, timeoutMs: Int = 4000): Reading {
+        val p = Prefs(ctx)
+        if (p.host.isBlank()) throw IllegalStateException("не вказано IP логера")
+        val r = regs(p, START, COUNT, timeoutMs)
         fun reg(n: Int) = r[n - START]
         fun s16(n: Int) = reg(n).let { if (it >= 0x8000) it - 0x10000 else it }
-        val cap = if (p.capOverride > 0) p.capOverride else runCatching { regs(p, REG_CAPACITY, 1)[0] }.getOrDefault(0)
+        val cap = if (p.capOverride > 0) p.capOverride else runCatching { regs(p, REG_CAPACITY, 1, timeoutMs)[0] }.getOrDefault(0)
         return Reading(
             soc = reg(184),
             battW = s16(190),             // + розряд, − заряд
@@ -49,9 +69,9 @@ object Deye {
         )
     }
 
-    private fun regs(p: Prefs, start: Int, count: Int) =
-        if (p.serial > 0) Solarman.readHolding(p.host, p.port, p.serial, start, count)
-        else Solarman.readModbusTcp(p.host, p.port, 1, start, count)
+    private fun regs(p: Prefs, start: Int, count: Int, timeoutMs: Int) =
+        if (p.serial > 0) Solarman.readHolding(p.host, p.port, p.serial, start, count, timeoutMs)
+        else Solarman.readModbusTcp(p.host, p.port, 1, start, count, timeoutMs)
 }
 
 object Fmt {
@@ -108,7 +128,20 @@ class Prefs(ctx: Context) {
     var gridSince: Long
         get() = sp.getLong("gridSince", 0L)
         set(v) = sp.edit().putLong("gridSince", v).apply()
-    val configured get() = host.isNotBlank()
+    /** Цей телефон — домашній хаб: постійно читає інвертор і шле дані в хмару. */
+    var hub: Boolean
+        get() = sp.getBoolean("hub", false)
+        set(v) = sp.edit().putBoolean("hub", v).apply()
+    /** URL Firebase Realtime Database, напр. https://xxx-default-rtdb.europe-west1.firebasedatabase.app */
+    var cloudUrl: String
+        get() = sp.getString("cloudUrl", "") ?: ""
+        set(v) = sp.edit().putString("cloudUrl", v).apply()
+    /** Секретний ключ (однаковий на хабі й на телефоні з віджетом). */
+    var cloudKey: String
+        get() = sp.getString("cloudKey", "") ?: ""
+        set(v) = sp.edit().putString("cloudKey", v).apply()
+    val cloudReady get() = cloudUrl.startsWith("https://") && cloudKey.length >= 24
+    val configured get() = host.isNotBlank() || (!hub && cloudReady)
 }
 
 /** Відстежує зміну стану мережі (з підтвердженням двома опитуваннями поспіль). */

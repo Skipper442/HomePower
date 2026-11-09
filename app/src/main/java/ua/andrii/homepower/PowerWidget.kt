@@ -47,7 +47,7 @@ class PowerWidget : AppWidgetProvider() {
                 try {
                     if (!Prefs(app).configured) throw IllegalStateException("налаштуй застосунок")
                     val r = Deye.read(app)
-                    GridTracker.observe(app, r.gridOn)
+                    if (!r.stale) GridTracker.observe(app, r.gridOn)
                     show(app, r)
                 } catch (e: Exception) {
                     showError(app, e.message ?: "немає зв'язку")
@@ -74,8 +74,12 @@ class PowerWidget : AppWidgetProvider() {
 
             // тривалість відключення відома, якщо застосунок бачив момент зникнення мережі
             val outageSince = if (!r.gridOn && p.gridState == 0 && p.gridSince > 0) p.gridSince else 0L
-            v.setTextViewText(R.id.updated,
-                if (outageSince > 0) "з " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(outageSince)) else now())
+            v.setTextViewText(R.id.updated, when {
+                r.fromCloud && r.stale -> "⚠ дані ${Fmt.duration(r.ageSec * 1000)} тому"
+                outageSince > 0 -> "з " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(outageSince))
+                r.fromCloud -> "☁ " + SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(r.time))
+                else -> now()
+            })
             if (r.gridOn) {
                 v.setTextViewText(R.id.gridPill, "Мережа є")
                 v.setInt(R.id.gridPill, "setBackgroundResource", R.drawable.pill_green)

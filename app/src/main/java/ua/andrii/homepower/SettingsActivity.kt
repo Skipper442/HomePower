@@ -49,6 +49,32 @@ class SettingsActivity : Activity() {
             textSize = 12f; setTextColor(Color.GRAY)
             text = "Працює у фоні, поки телефон у домашній Wi-Fi: опитує інвертор кожні 30 с і заодно оновлює віджет. Трохи більше витрачає заряд телефона."
         })
+        label("Доступ звідусіль (Firebase)")
+        val cloudUrl = field("URL бази, https://…firebasedatabase.app", p.cloudUrl, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
+        val cloudKey = field("Секретний ключ (однаковий на обох телефонах)", p.cloudKey, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+        val keyRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; root.addView(this) }
+        keyRow.addView(Button(this).apply {
+            text = "Новий ключ"
+            setOnClickListener { cloudKey.setText(Cloud.newKey()) }
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        keyRow.addView(Button(this).apply {
+            text = "Скопіювати"
+            setOnClickListener {
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("Home Power key", cloudKey.text.toString()))
+                android.widget.Toast.makeText(this@SettingsActivity, "Ключ скопійовано", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val hub = CheckBox(this).apply {
+            text = "Цей телефон — домашній хаб (постійно вдома)"
+            isChecked = p.hub
+            root.addView(this)
+        }
+        root.addView(TextView(this).apply {
+            textSize = 12f; setTextColor(Color.GRAY)
+            text = "Хаб кожні 5 с читає інвертор і відправляє дані в хмару. На основному телефоні хаб НЕ вмикай: віджет удома бере дані напряму, а поза домом — з хмари."
+        })
+
         root.addView(Button(this).apply {
             text = "Сховати значок моніторингу зі шторки"
             setOnClickListener {
@@ -74,7 +100,12 @@ class SettingsActivity : Activity() {
             p.minSoc = (minSoc.text.toString().trim().toIntOrNull() ?: 20).coerceIn(0, 100)
             p.capOverride = cap.text.toString().trim().toIntOrNull() ?: 0
             p.monitor = monitor.isChecked
-            if (p.monitor) enableMonitor() else MonitorService.stop(this)
+            p.cloudUrl = cloudUrl.text.toString().trim().trimEnd('/')
+            p.cloudKey = cloudKey.text.toString().trim()
+            p.hub = hub.isChecked
+            if (p.hub && !p.cloudReady) { result.text = "Для хаба вкажи URL бази і ключ (мінімум 24 символи)"; return false }
+            MonitorService.stop(this)
+            if (p.monitor || p.hub) enableMonitor()
             return true
         }
 
@@ -85,10 +116,16 @@ class SettingsActivity : Activity() {
                 result.setTextColor(Color.GRAY); result.text = "Підключаюсь…"
                 Thread {
                     val msg = try {
-                        val r = Deye.read(this@SettingsActivity)
+                        val r = if (p.hub) Deye.readLocal(this@SettingsActivity) else Deye.read(this@SettingsActivity)
+                        if (p.hub) Cloud.push(p, r)
                         PowerWidget.show(applicationContext, r)
                         buildString {
-                            append("✅ Працює!\n")
+                            append("✅ Працює!")
+                            append(when {
+                                p.hub -> " Дані відправлено в хмару.\n"
+                                r.fromCloud -> " Дані з хмари (${r.ageSec} с тому).\n"
+                                else -> " Напряму з інвертора.\n"
+                            })
                             append("Мережа: ${if (r.gridOn) "є" else "нема"} (${r.gridV} V)\n")
                             append("SOC ${r.soc}% · батарея ${r.battV} V · ${r.capAh} Ah\n")
                             if (r.capAh > 0) append("Енергія: ${Fmt.kwh(r.leftKWh)} з ${Fmt.kwh(r.fullKWh)} kWh\n")
