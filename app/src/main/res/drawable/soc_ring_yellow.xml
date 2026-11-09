@@ -8,7 +8,7 @@
     <item android:id="@android:id/progress">
         <rotate android:fromDegrees="270" android:toDegrees="270" android:pivotX="50%" android:pivotY="50%">
             <shape android:shape="ring" android:innerRadius="36dp" android:thickness="9dp" android:useLevel="true">
-                <solid android:color="#5AA9FF" />
+                <solid android:color="#FBBF24" />
             </shape>
         </rotate>
     </item>

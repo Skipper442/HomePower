@@ -13,6 +13,11 @@ data class Reading(
     val fullKWh get() = capAh * volts / 1000.0
     /** Скільки енергії зараз у батареї, кВт·год. */
     val leftKWh get() = fullKWh * soc / 100.0
+    /** Години до 100% при поточній потужності заряду; null — якщо не заряджається. */
+    fun hoursToFull(): Double? {
+        if (battW > -30 || capAh <= 0 || soc >= 100) return null
+        return fullKWh * (100 - soc) / 100.0 * 1000.0 / -battW
+    }
     /** Години роботи при поточному споживанні до мінімального SOC; null — якщо не рахується. */
     fun hoursLeft(minSoc: Int): Double? {
         if (loadW < 20 || capAh <= 0) return null
@@ -94,8 +99,40 @@ class Prefs(ctx: Context) {
     var gridState: Int
         get() = sp.getInt("gridState", -1)
         set(v) = sp.edit().putInt("gridState", v).apply()
+    var gridPending: Int
+        get() = sp.getInt("gridPending", -1)
+        set(v) = sp.edit().putInt("gridPending", v).apply()
+    var gridPendingCount: Int
+        get() = sp.getInt("gridPendingCount", 0)
+        set(v) = sp.edit().putInt("gridPendingCount", v).apply()
+    /** Коли мережа перейшла в поточний стан; 0 — невідомо. */
     var gridSince: Long
         get() = sp.getLong("gridSince", 0L)
         set(v) = sp.edit().putLong("gridSince", v).apply()
     val configured get() = host.isNotBlank()
+}
+
+/** Відстежує зміну стану мережі (з підтвердженням двома опитуваннями поспіль). */
+object GridTracker {
+    private const val CONFIRM = 2
+
+    data class Change(val gridOn: Boolean, val previousSince: Long)
+
+    /** Повертає зміну, якщо вона щойно підтвердилась (і попередній стан був відомий). */
+    @Synchronized
+    fun observe(ctx: Context, gridOn: Boolean): Change? {
+        val p = Prefs(ctx)
+        val state = if (gridOn) 1 else 0
+        if (state == p.gridState) { p.gridPending = -1; p.gridPendingCount = 0; return null }
+        val count = if (p.gridPending == state) p.gridPendingCount + 1 else 1
+        p.gridPending = state; p.gridPendingCount = count
+        if (count < CONFIRM) return null
+        val previous = p.gridState
+        val prevSince = p.gridSince
+        p.gridState = state
+        // якщо попередній стан невідомий — момент зміни теж невідомий
+        p.gridSince = if (previous == -1) 0L else System.currentTimeMillis()
+        p.gridPending = -1; p.gridPendingCount = 0
+        return if (previous == -1) null else Change(gridOn, prevSince)
+    }
 }

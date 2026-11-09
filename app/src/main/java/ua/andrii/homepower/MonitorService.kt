@@ -24,7 +24,6 @@ class MonitorService : Service() {
         private const val ID_ONGOING = 1
         private const val ID_GRID = 2
         private const val INTERVAL_MS = 30_000L
-        private const val CONFIRM = 2 // скільки опитувань поспіль має підтвердити зміну
 
         fun start(ctx: Context) {
             val i = Intent(ctx, MonitorService::class.java)
@@ -67,22 +66,11 @@ class MonitorService : Service() {
     }
 
     private fun loop() {
-        val p = Prefs(this)
-        var candidate = -1
-        var seen = 0
         while (running) {
             try {
                 val r = Deye.read(this)
+                GridTracker.observe(this, r.gridOn)?.let { alert(r, it.gridOn, it.previousSince) }
                 PowerWidget.show(this, r)
-                val state = if (r.gridOn) 1 else 0
-                if (state == candidate) seen++ else { candidate = state; seen = 1 }
-                if (seen >= CONFIRM && state != p.gridState) {
-                    val previous = p.gridState
-                    val since = p.gridSince
-                    p.gridState = state
-                    p.gridSince = System.currentTimeMillis()
-                    if (previous != -1) alert(r, state == 1, since)
-                }
             } catch (e: InterruptedException) {
                 break
             } catch (e: Exception) {

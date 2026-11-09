@@ -15,14 +15,35 @@
         android:layout_width="92dp"
         android:layout_height="92dp">
         <ProgressBar
-            android:id="@+id/ring"
+            android:id="@+id/ringGreen"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:indeterminate="false"
             android:max="100"
             android:progress="0"
-            android:progressDrawable="@drawable/soc_ring" />
+            android:visibility="visible"
+            android:progressDrawable="@drawable/soc_ring_green" />
+        <ProgressBar
+            android:id="@+id/ringYellow"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0"
+            android:visibility="gone"
+            android:progressDrawable="@drawable/soc_ring_yellow" />
+        <ProgressBar
+            android:id="@+id/ringRed"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0"
+            android:visibility="gone"
+            android:progressDrawable="@drawable/soc_ring_red" />
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

@@ -46,7 +46,9 @@ class PowerWidget : AppWidgetProvider() {
             Thread {
                 try {
                     if (!Prefs(app).configured) throw IllegalStateException("налаштуй застосунок")
-                    show(app, Deye.read(app))
+                    val r = Deye.read(app)
+                    GridTracker.observe(app, r.gridOn)
+                    show(app, r)
                 } catch (e: Exception) {
                     showError(app, e.message ?: "немає зв'язку")
                 } finally {
@@ -59,29 +61,40 @@ class PowerWidget : AppWidgetProvider() {
         fun show(ctx: Context, r: Reading) {
             val app = ctx.applicationContext
             val ids = ids(app); if (ids.isEmpty()) return
-            val minSoc = Prefs(app).minSoc
             val v = base(app)
-            v.setTextViewText(R.id.updated, now())
-            v.setProgressBar(R.id.ring, 100, r.soc.coerceIn(0, 100), false)
+            val p = Prefs(app)
+            val soc = r.soc.coerceIn(0, 100)
+            val ring = when { soc > 50 -> R.id.ringGreen; soc >= 20 -> R.id.ringYellow; else -> R.id.ringRed }
+            for (id in intArrayOf(R.id.ringGreen, R.id.ringYellow, R.id.ringRed)) {
+                v.setViewVisibility(id, if (id == ring) android.view.View.VISIBLE else android.view.View.GONE)
+                v.setProgressBar(id, 100, soc, false)
+            }
             v.setTextViewText(R.id.soc, "${r.soc}%")
             v.setTextViewText(R.id.kwh, if (r.capAh > 0) "${Fmt.kwh(r.leftKWh)} kWh" else "")
 
+            // тривалість відключення відома, якщо застосунок бачив момент зникнення мережі
+            val outageSince = if (!r.gridOn && p.gridState == 0 && p.gridSince > 0) p.gridSince else 0L
+            v.setTextViewText(R.id.updated,
+                if (outageSince > 0) "з " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(outageSince)) else now())
             if (r.gridOn) {
                 v.setTextViewText(R.id.gridPill, "Мережа є")
                 v.setInt(R.id.gridPill, "setBackgroundResource", R.drawable.pill_green)
                 v.setTextColor(R.id.gridPill, Color.parseColor("#06281C"))
             } else {
-                v.setTextViewText(R.id.gridPill, "Нема мережі")
+                v.setTextViewText(R.id.gridPill,
+                    if (outageSince > 0) "Нема ${Fmt.duration(System.currentTimeMillis() - outageSince)}" else "Нема мережі")
                 v.setInt(R.id.gridPill, "setBackgroundResource", R.drawable.pill_red)
                 v.setTextColor(R.id.gridPill, Color.parseColor("#3B0A0A"))
             }
 
-            val h = r.hoursLeft(minSoc)
+            val toFull = r.hoursToFull()
+            val h = toFull ?: r.hoursLeft(p.minSoc)
             v.setTextViewText(R.id.hours, when {
                 h == null -> "—"
                 h >= 10 -> "≈ ${h.toInt()}"
                 else -> "≈ " + String.format(Locale.US, "%.1f", h)
             })
+            v.setTextViewText(R.id.hoursUnit, if (toFull != null) "год до 100%" else "год")
 
             val d = SpannableStringBuilder()
             if (r.capAh <= 0) {
