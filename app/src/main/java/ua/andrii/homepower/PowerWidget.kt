@@ -87,27 +87,43 @@ class PowerWidget : AppWidgetProvider() {
                 v.setTextColor(R.id.gridPill, Color.parseColor("#3B0A0A"))
             }
 
+            val discharging = r.battW > ACTIVE
             val toFull = r.hoursToFull()
-            val h = toFull ?: r.hoursLeft(p.minSoc)
-            v.setTextViewText(R.id.hours, when {
-                h == null -> "—"
-                h >= 10 -> "≈ ${h.toInt()}"
-                else -> "≈ " + String.format(Locale.US, "%.1f", h)
-            })
-            v.setTextViewText(R.id.hoursUnit, if (toFull != null) "год до 100%" else "год")
-
-            val d = SpannableStringBuilder()
-            if (r.capAh <= 0) {
-                d.append("Вкажи ємність АКБ у застосунку")
-            } else {
-                d.append("Споживання ")
-                bold(d, "${r.loadW} W", WHITE)
-                when {
-                    r.battW > ACTIVE -> { d.append(" · "); colored(d, "розряд ${kw(r.battW)}", BLUE) }
-                    r.battW < -ACTIVE -> { d.append(" · "); colored(d, "заряд ${kw(-r.battW)}", GREEN) }
-                }
-                if (r.pvW > ACTIVE) { d.append(" · "); colored(d, "☀ ${kw(r.pvW)}", SUN) }
+            val src = when {
+                r.gridW > ACTIVE && r.gridW >= r.pvW -> "від мережі"
+                r.pvW > ACTIVE -> "від сонця"
+                else -> "від мережі"
             }
+            val d = SpannableStringBuilder()
+            when {
+                // Живимось від батареї (нема мережі або розряд за розкладом) — скільки вистачить
+                !r.gridOn || discharging -> {
+                    setHours(v, r.hoursLeft(p.minSoc), "год")
+                    if (r.capAh <= 0) d.append("Вкажи ємність АКБ у застосунку") else {
+                        d.append("Споживання "); bold(d, "${r.loadW} W", WHITE)
+                        if (discharging) { d.append(" · "); colored(d, "розряд ${kw(r.battW)}", BLUE) }
+                    }
+                }
+                // Мережа є, батарея заряджається — скільки до 100%
+                toFull != null -> {
+                    setHours(v, toFull, "год до 100%")
+                    d.append("Споживання "); bold(d, "${r.loadW} W", WHITE); d.append(" $src · ")
+                    colored(d, "заряд ${kw(-r.battW)}", GREEN)
+                }
+                // Мережа є, батарея повна/в резерві — показуємо споживання і джерело
+                else -> {
+                    if (r.loadW >= 1000) {
+                        v.setTextViewText(R.id.hours, String.format(Locale.US, "%.1f", r.loadW / 1000.0))
+                        v.setTextViewText(R.id.hoursUnit, "kW $src")
+                    } else {
+                        v.setTextViewText(R.id.hours, r.loadW.toString())
+                        v.setTextViewText(R.id.hoursUnit, "W $src")
+                    }
+                    d.append("Батарея ")
+                    if (r.battW < -ACTIVE) colored(d, "заряд ${kw(-r.battW)}", GREEN) else colored(d, "в резерві", GREEN)
+                }
+            }
+            if (r.pvW > ACTIVE && r.capAh > 0) { d.append(" · "); colored(d, "☀ ${kw(r.pvW)}", SUN) }
             v.setTextViewText(R.id.details, d)
             AppWidgetManager.getInstance(app).updateAppWidget(ids, v)
         }
@@ -124,6 +140,15 @@ class PowerWidget : AppWidgetProvider() {
             setOnClickPendingIntent(R.id.root, PendingIntent.getBroadcast(
                 app, 0, Intent(app, PowerWidget::class.java).setAction(ACTION_REFRESH),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+        }
+
+        private fun setHours(v: RemoteViews, h: Double?, unit: String) {
+            v.setTextViewText(R.id.hours, when {
+                h == null -> "—"
+                h >= 10 -> "≈ ${h.toInt()}"
+                else -> "≈ " + String.format(Locale.US, "%.1f", h)
+            })
+            v.setTextViewText(R.id.hoursUnit, unit)
         }
 
         private fun colored(sb: SpannableStringBuilder, text: String, color: Int) {

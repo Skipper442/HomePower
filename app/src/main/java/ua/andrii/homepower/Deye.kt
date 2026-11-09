@@ -8,9 +8,8 @@ data class Reading(
     val gridV: Double, val battV: Double, val capAh: Int,
 ) {
     val gridOn get() = gridV >= 150.0
-    private val volts get() = if (battV > 40) battV else 51.2
-    /** Повна ємність батареї, кВт·год. */
-    val fullKWh get() = capAh * volts / 1000.0
+    /** Повна ємність батареї, кВт·год (за номінальною напругою LiFePO4 16S — 51.2 V). */
+    val fullKWh get() = capAh * 51.2 / 1000.0
     /** Скільки енергії зараз у батареї, кВт·год. */
     val leftKWh get() = fullKWh * soc / 100.0
     /** Години до 100% при поточній потужності заряду; null — якщо не заряджається. */
