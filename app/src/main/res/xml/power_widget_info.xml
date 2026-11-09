@@ -4,6 +4,7 @@
     android:previewLayout="@layout/widget_power"
     android:minWidth="250dp"
     android:minHeight="110dp"
+    android:description="@string/widget_desc"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
