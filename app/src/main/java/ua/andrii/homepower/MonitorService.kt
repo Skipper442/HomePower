@@ -19,7 +19,7 @@ import java.util.Locale
 class MonitorService : Service() {
 
     companion object {
-        private const val CH_MONITOR = "monitor"
+        const val CH_MONITOR = "monitor"
         private const val CH_GRID = "grid_alerts"
         private const val ID_ONGOING = 1
         private const val ID_GRID = 2
@@ -47,7 +47,7 @@ class MonitorService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createChannels(this)
-        val n = ongoing("Запуск моніторингу…")
+        val n = ongoing("Стежу за світлом")
         if (Build.VERSION.SDK_INT >= 34) startForeground(ID_ONGOING, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         else startForeground(ID_ONGOING, n)
         if (!running) {
@@ -83,20 +83,13 @@ class MonitorService : Service() {
                     p.gridSince = System.currentTimeMillis()
                     if (previous != -1) alert(r, state == 1, since)
                 }
-                update(ongoing(status(r)))
             } catch (e: InterruptedException) {
                 break
             } catch (e: Exception) {
-                update(ongoing("Немає зв'язку з інвертором (поза домашньою мережею?)"))
+                // поза домашньою мережею — тихо чекаємо наступного опитування
             }
             try { Thread.sleep(INTERVAL_MS) } catch (e: InterruptedException) { break }
         }
-    }
-
-    private fun status(r: Reading): String {
-        val grid = if (r.gridOn) "Мережа є" else "Мережі нема"
-        val batt = Fmt.battery(r, Prefs(this).minSoc)
-        return "$grid · ${r.soc}%" + if (batt.isNotEmpty()) " · $batt" else ""
     }
 
     private fun alert(r: Reading, gridBack: Boolean, prevSince: Long) {
@@ -129,9 +122,8 @@ class MonitorService : Service() {
             .setContentText(text)
             .setContentIntent(openApp())
             .setOngoing(true)
+            .setShowWhen(false)
             .build()
-
-    private fun update(n: Notification) = getSystemService(NotificationManager::class.java).notify(ID_ONGOING, n)
 
     private fun openApp() = PendingIntent.getActivity(this, 0, Intent(this, SettingsActivity::class.java),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

@@ -52,24 +52,21 @@ object Deye {
 
 object Fmt {
     fun kwh(v: Double) = String.format(java.util.Locale.US, "%.1f", v)
-    fun hours(h: Double): String {
-        val m = (h * 60).toInt()
-        return when {
-            m >= 48 * 60 -> "${m / 1440} д"
-            m >= 60 -> "${m / 60} год ${m % 60} хв"
-            else -> "$m хв"
-        }
+    /** Прогноз у годинах: «≈ 56 год», «≈ 7.5 год». */
+    fun hours(h: Double): String = when {
+        h >= 10 -> "≈ ${h.toInt()} год"
+        else -> "≈ " + String.format(java.util.Locale.US, "%.1f", h) + " год"
     }
     fun duration(ms: Long): String {
         val m = ms / 60000
         return if (m >= 60) "${m / 60} год ${m % 60} хв" else "$m хв"
     }
-    /** «6.2 / 10.2 kWh · ≈ 7 год 20 хв» */
+    /** «6.2 / 10.2 kWh · ≈ 56 год» */
     fun battery(r: Reading, minSoc: Int): String {
-        if (r.capAh <= 0) return ""
+        if (r.capAh <= 0) return "Вкажи ємність АКБ у застосунку"
         val base = "${kwh(r.leftKWh)} / ${kwh(r.fullKWh)} kWh"
         val h = r.hoursLeft(minSoc) ?: return base
-        return "$base · ≈ ${hours(h)}"
+        return "$base · ${hours(h)}"
     }
 }
 

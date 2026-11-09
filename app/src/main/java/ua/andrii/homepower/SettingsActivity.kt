@@ -49,6 +49,20 @@ class SettingsActivity : Activity() {
             textSize = 12f; setTextColor(Color.GRAY)
             text = "Працює у фоні, поки телефон у домашній Wi-Fi: опитує інвертор кожні 30 с і заодно оновлює віджет. Трохи більше витрачає заряд телефона."
         })
+        root.addView(Button(this).apply {
+            text = "Сховати значок моніторингу зі шторки"
+            setOnClickListener {
+                runCatching {
+                    startActivity(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                        .putExtra(Settings.EXTRA_CHANNEL_ID, MonitorService.CH_MONITOR))
+                }
+            }
+        })
+        root.addView(TextView(this).apply {
+            textSize = 12f; setTextColor(Color.GRAY)
+            text = "Вимкни категорію «Фоновий моніторинг». Моніторинг продовжить працювати, а сповіщення про світло приходитимуть як і раніше."
+        })
         val result = TextView(this).apply { setPadding(0, pad, 0, 0); textSize = 15f }
 
         fun save(): Boolean {
@@ -78,7 +92,7 @@ class SettingsActivity : Activity() {
                             append("Мережа: ${if (r.gridOn) "є" else "нема"} (${r.gridV} V)\n")
                             append("SOC ${r.soc}% · батарея ${r.battV} V · ${r.capAh} Ah\n")
                             if (r.capAh > 0) append("Енергія: ${Fmt.kwh(r.leftKWh)} з ${Fmt.kwh(r.fullKWh)} kWh\n")
-                            r.hoursLeft(p.minSoc)?.let { append("Вистачить до ${p.minSoc}%: ≈ ${Fmt.hours(it)}\n") }
+                            r.hoursLeft(p.minSoc)?.let { append("Вистачить до ${p.minSoc}%: ${Fmt.hours(it)}\n") }
                             append("Споживання ${r.loadW} W · батарея ${r.battW} W (+ розряд)\n")
                             append("Мережа ${r.gridW} W · PV ${r.pvW} W · Gen ${r.genW} W")
                         }
