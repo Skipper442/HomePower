@@ -127,6 +127,7 @@ class SettingsActivity : Activity() {
                                 else -> " Напряму з інвертора.\n"
                             })
                             append("Мережа: ${if (r.gridOn) "є" else "нема"} (${r.gridV} V)\n")
+                            r.invTemp?.let { append("Температура інвертора: ${it} °C\n") }
                             append("SOC ${r.soc}% · батарея ${r.battV} V · ${r.capAh} Ah\n")
                             if (r.capAh > 0) append("Енергія: ${Fmt.kwh(r.leftKWh)} з ${Fmt.kwh(r.fullKWh)} kWh\n")
                             r.hoursLeft(p.minSoc)?.let { append("Вистачить до ${p.minSoc}%: ${Fmt.hours(it)}\n") }

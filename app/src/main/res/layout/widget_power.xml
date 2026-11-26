@@ -93,6 +93,16 @@
                 android:textSize="12sp"
                 android:textStyle="bold" />
             <TextView
+                android:id="@+id/invTemp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:maxLines="1"
+                android:text=""
+                android:textColor="#9CA3AF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+            <TextView
                 android:id="@+id/updated"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

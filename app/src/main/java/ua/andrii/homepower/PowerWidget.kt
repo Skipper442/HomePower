@@ -16,6 +16,7 @@ import android.widget.RemoteViews
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class PowerWidget : AppWidgetProvider() {
 
@@ -90,6 +91,14 @@ class PowerWidget : AppWidgetProvider() {
                 v.setInt(R.id.gridPill, "setBackgroundResource", R.drawable.pill_red)
                 v.setTextColor(R.id.gridPill, Color.parseColor("#3B0A0A"))
             }
+
+            val t = r.invTemp
+            v.setTextViewText(R.id.invTemp, if (t != null) "🌡 ${t.roundToInt()}°" else "")
+            v.setTextColor(R.id.invTemp, Color.parseColor(when {
+                t == null || t < 65 -> "#9CA3AF"
+                t < 80 -> "#FBBF24"
+                else -> "#F87171"
+            }))
 
             val discharging = r.battW > ACTIVE
             val toFull = r.hoursToFull()
