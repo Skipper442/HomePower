@@ -47,13 +47,30 @@ object Deye {
     fun read(ctx: Context): Reading {
         val p = Prefs(ctx)
         if (p.hub || !p.cloudReady) return readLocal(ctx)
+        fun cloud(): Reading = Cloud.fetch(p).let { if (p.capOverride > 0) it.copy(capAh = p.capOverride) else it }
+        if (onMobileDataOnly(ctx)) {
+            // На мобільному інтернеті інвертор напряму недосяжний — одразу в хмару,
+            // а напряму пробуємо лише якщо хмара не відповіла (напр., увімкнено Tailscale)
+            return try { cloud() } catch (e: Exception) {
+                try { readLocal(ctx, timeoutMs = 1500) } catch (local: Exception) { throw java.io.IOException("ні вдома, ні в хмарі: ${e.message}") }
+            }
+        }
         return try {
             readLocal(ctx, timeoutMs = 1500)
         } catch (local: Exception) {
-            val r = try { Cloud.fetch(p) } catch (e: Exception) { throw java.io.IOException("ні вдома, ні в хмарі: ${e.message}") }
-            if (p.capOverride > 0) r.copy(capAh = p.capOverride) else r
+            try { cloud() } catch (e: Exception) { throw java.io.IOException("ні вдома, ні в хмарі: ${e.message}") }
         }
     }
+
+    /** Тільки мобільний інтернет: без Wi-Fi/Ethernet і без VPN. */
+    private fun onMobileDataOnly(ctx: Context): Boolean = runCatching {
+        val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) &&
+            !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) &&
+            !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) &&
+            !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
+    }.getOrDefault(false)
 
     fun readLocal(ctx: Context, timeoutMs: Int = 4000): Reading {
         val p = Prefs(ctx)
