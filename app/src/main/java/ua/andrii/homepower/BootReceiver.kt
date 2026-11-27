@@ -6,6 +6,8 @@ import android.content.Intent
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED && (Prefs(context).monitor || Prefs(context).hub)) MonitorService.start(context)
+        val ok = intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) PowerWidget.refresh(context, null)
+        if (ok && (Prefs(context).monitor || Prefs(context).hub)) MonitorService.start(context)
     }
 }

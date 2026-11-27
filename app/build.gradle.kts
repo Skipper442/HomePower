@@ -9,13 +9,26 @@ android {
         applicationId = "ua.andrii.homepower"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // Номер збірки GitHub Actions — щоб кожна нова версія мала більший versionCode
+        val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionCode = build
+        versionName = "1.$build"
+    }
+    signingConfigs {
+        // Постійний ключ підпису: без нього кожна збірка мала б інший підпис,
+        // і Android відмовлявся б ставити оновлення поверх старої версії.
+        create("release") {
+            storeFile = file("release.p12")
+            storeType = "PKCS12"
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = "homepower"
+            keyPassword = System.getenv("KEYSTORE_PASSWORD")
+        }
     }
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

@@ -33,6 +33,11 @@ class SettingsActivity : Activity() {
         fun label(t: String) = root.addView(TextView(this).apply { text = t; textSize = 13f; setTextColor(Color.GRAY); setPadding(0, pad / 2, 0, 0) })
 
         root.addView(TextView(this).apply { text = "Home Power — інвертор Deye"; textSize = 20f })
+        val updateBtn = Button(this).apply {
+            text = "Версія ${Updater.currentName(this@SettingsActivity)} · перевірити оновлення"
+            setOnClickListener { checkUpdate(this, install = false) }
+        }
+        root.addView(updateBtn, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         label("Підключення")
         val host = field("IP логера, напр. 192.168.31.85", p.host, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
         val port = field("Порт (502 — Modbus TCP, 8899 — Solarman)", p.port.toString(), InputType.TYPE_CLASS_NUMBER)
@@ -145,6 +150,46 @@ class SettingsActivity : Activity() {
             text = "Додай віджет «Home Power» на головний екран. Тап по віджету — оновлення даних."
         })
         setContentView(ScrollView(this).apply { addView(root) })
+        checkUpdate(updateBtn, install = intent.getBooleanExtra(Updater.EXTRA_INSTALL, false))
+    }
+
+    /** Перевіряє GitHub; якщо є нова версія — кнопка стає «Встановити», а з install=true ставить одразу. */
+    private fun checkUpdate(btn: Button, install: Boolean) {
+        btn.isEnabled = false
+        btn.text = "Перевіряю оновлення…"
+        Thread {
+            val r = runCatching { Updater.check(this) }
+            runOnUiThread {
+                btn.isEnabled = true
+                val remote = r.getOrNull()
+                when {
+                    r.isFailure -> btn.text = "Версія ${Updater.currentName(this)} · не вдалось перевірити оновлення"
+                    remote == null -> btn.text = "Версія ${Updater.currentName(this)} · актуальна"
+                    else -> {
+                        btn.text = "⬆ Встановити оновлення ${remote.name}"
+                        btn.setOnClickListener { installUpdate(btn) }
+                        if (install) installUpdate(btn)
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun installUpdate(btn: Button) {
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            android.widget.Toast.makeText(this, "Дозволь Home Power встановлювати застосунки й натисни ще раз", android.widget.Toast.LENGTH_LONG).show()
+            runCatching { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
+            return
+        }
+        btn.isEnabled = false
+        btn.text = "Завантажую оновлення…"
+        Thread {
+            val r = runCatching { Updater.downloadAndInstall(this) }
+            runOnUiThread {
+                btn.isEnabled = true
+                btn.text = if (r.isSuccess) "Встановлюю… (підтверди, якщо система спитає)" else "Помилка: ${r.exceptionOrNull()?.message}"
+            }
+        }.start()
     }
 
     @SuppressLint("BatteryLife")
