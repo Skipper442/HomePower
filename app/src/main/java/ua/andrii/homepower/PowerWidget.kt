@@ -24,6 +24,10 @@ class PowerWidget : AppWidgetProvider() {
         refresh(context, goAsync())
     }
 
+    override fun onAppWidgetOptionsChanged(context: Context, mgr: AppWidgetManager, id: Int, options: android.os.Bundle) {
+        refresh(context, goAsync()) // змінили розмір — перемалювати з новим масштабом
+    }
+
     /** Колірна тема стану: тло, смужка, акцентний і світлий текст. */
     private enum class Theme(val bg: Int, val bar: Int, val accent: String, val light: String) {
         RED(R.drawable.bg_red, R.id.barRed, "#FCA5A5", "#FECACA"),
@@ -63,7 +67,18 @@ class PowerWidget : AppWidgetProvider() {
         /** Малює свіжі дані на всіх віджетах (викликається і з фонового моніторингу). */
         fun show(ctx: Context, r: Reading) {
             val app = ctx.applicationContext
-            val ids = ids(app); if (ids.isEmpty()) return
+            val mgr = AppWidgetManager.getInstance(app)
+            for (id in ids(app)) mgr.updateAppWidget(id, build(app, r, scaleFor(mgr, id)))
+        }
+
+        /** Масштаб тексту під реальну висоту віджета (база — 170 dp). */
+        private fun scaleFor(mgr: AppWidgetManager, id: Int): Float {
+            val o = mgr.getAppWidgetOptions(id)
+            val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+            return if (h <= 0) 1f else (h / 170f).coerceIn(1f, 1.35f)
+        }
+
+        private fun build(app: Context, r: Reading, scale: Float): RemoteViews {
             val p = Prefs(app)
             val v = base(app)
 
@@ -100,6 +115,7 @@ class PowerWidget : AppWidgetProvider() {
             v.setTextColor(R.id.meta, Color.parseColor(theme.accent))
 
             // Велике число + деталі
+            var bigUnitLong = false
             val details: String
             when {
                 !r.gridOn || discharging -> {
@@ -111,10 +127,11 @@ class PowerWidget : AppWidgetProvider() {
                     }
                 }
                 toFull != null -> {
-                    setHours(v, toFull, "год до 100%")
+                    setHours(v, toFull, "год до 100%"); bigUnitLong = true
                     details = "${r.loadW} W $src · заряд ${kw(-r.battW)}"
                 }
                 else -> {
+                    bigUnitLong = true
                     if (r.loadW >= 1000) {
                         v.setTextViewText(R.id.big, String.format(Locale.US, "%.1f", r.loadW / 1000.0))
                         v.setTextViewText(R.id.unit, "kW $src")
@@ -153,7 +170,14 @@ class PowerWidget : AppWidgetProvider() {
                 v.setViewVisibility(R.id.solar, View.GONE)
             }
 
-            AppWidgetManager.getInstance(app).updateAppWidget(ids, v)
+            // Розміри тексту: велике число і відсоток ростуть сильніше, дрібний текст — трохи
+            val small = minOf(scale, 1.15f)
+            val bigScale = if (bigUnitLong) minOf(scale, 1.2f) else scale
+            fun sp(id: Int, base: Float, k: Float) = v.setTextViewTextSize(id, android.util.TypedValue.COMPLEX_UNIT_SP, base * k)
+            sp(R.id.big, 44f, bigScale); sp(R.id.soc, 26f, scale)
+            sp(R.id.unit, 16f, small); sp(R.id.details, 13f, small); sp(R.id.kwh, 12f, small)
+            sp(R.id.title, 14f, small); sp(R.id.meta, 12f, small); sp(R.id.solar, 13f, small)
+            return v
         }
 
         fun showError(ctx: Context, msg: String) {
