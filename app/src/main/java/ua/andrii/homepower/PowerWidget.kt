@@ -120,8 +120,8 @@ class PowerWidget : AppWidgetProvider() {
                 // Мережа є, батарея заряджається — скільки до 100%
                 toFull != null -> {
                     setHours(v, toFull, "год до 100%")
-                    d.append("Споживання "); bold(d, "${r.loadW} W", WHITE); d.append(" $src · ")
-                    colored(d, "заряд ${kw(-r.battW)}", GREEN)
+                    d.append("Споживання "); bold(d, "${r.loadW} W", WHITE); d.append(" $src\n")
+                    colored(d, "Заряд ${kw(-r.battW)}", GREEN)
                 }
                 // Мережа є, батарея повна/в резерві — показуємо споживання і джерело
                 else -> {
