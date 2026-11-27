@@ -26,6 +26,7 @@ object Cloud {
             .put("genW", r.genW).put("loadW", r.loadW).put("pvW", r.pvW)
             .put("gridV", r.gridV).put("battV", r.battV).put("capAh", r.capAh)
         r.invTemp?.let { body.put("invT", it) }
+        r.pvTodayKWh?.let { body.put("pvToday", it) }
         request(url(p), "PUT", body.toString())
     }
 
@@ -38,6 +39,7 @@ object Cloud {
             genW = j.optInt("genW"), loadW = j.getInt("loadW"), pvW = j.optInt("pvW"),
             gridV = j.optDouble("gridV", 0.0), battV = j.optDouble("battV", 0.0), capAh = j.optInt("capAh"),
             invTemp = if (j.has("invT")) j.getDouble("invT") else null,
+            pvTodayKWh = if (j.has("pvToday")) j.getDouble("pvToday") else null,
             time = j.getLong("t"), fromCloud = true,
         )
     }

@@ -45,6 +45,11 @@ class SettingsActivity : Activity() {
         label("Батарея")
         val minSoc = field("Мінімальний заряд для прогнозу, %", p.minSoc.toString(), InputType.TYPE_CLASS_NUMBER)
         val cap = field("Ємність, Ah (порожньо = з інвертора)", if (p.capOverride > 0) p.capOverride.toString() else "", InputType.TYPE_CLASS_NUMBER)
+        val solar = CheckBox(this).apply {
+            text = "Є сонячні панелі — показувати генерацію у віджеті"
+            isChecked = p.showSolar
+            root.addView(this)
+        }
         val monitor = CheckBox(this).apply {
             text = "Сповіщення, коли зникає / з'являється світло"
             isChecked = p.monitor
@@ -105,6 +110,7 @@ class SettingsActivity : Activity() {
             p.minSoc = (minSoc.text.toString().trim().toIntOrNull() ?: 20).coerceIn(0, 100)
             p.capOverride = cap.text.toString().trim().toIntOrNull() ?: 0
             p.monitor = monitor.isChecked
+            p.showSolar = solar.isChecked
             p.cloudUrl = cloudUrl.text.toString().trim().trimEnd('/')
             p.cloudKey = cloudKey.text.toString().trim()
             p.hub = hub.isChecked
@@ -133,6 +139,7 @@ class SettingsActivity : Activity() {
                             })
                             append("Мережа: ${if (r.gridOn) "є" else "нема"} (${r.gridV} V)\n")
                             r.invTemp?.let { append("Температура інвертора: ${it} °C\n") }
+                            if (p.showSolar) append("Сонце: ${r.pvW} W, сьогодні ${r.pvTodayKWh ?: "?"} kWh\n")
                             append("SOC ${r.soc}% · батарея ${r.battV} V · ${r.capAh} Ah\n")
                             if (r.capAh > 0) append("Енергія: ${Fmt.kwh(r.leftKWh)} з ${Fmt.kwh(r.fullKWh)} kWh\n")
                             r.hoursLeft(p.minSoc)?.let { append("Вистачить до ${p.minSoc}%: ${Fmt.hours(it)}\n") }

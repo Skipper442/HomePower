@@ -8,6 +8,8 @@ data class Reading(
     val gridV: Double, val battV: Double, val capAh: Int,
     /** Температура радіатора інвертора, °C; null — не вдалося прочитати. */
     val invTemp: Double? = null,
+    /** Скільки вироблено сонцем сьогодні, кВт·год; null — не вдалося прочитати. */
+    val pvTodayKWh: Double? = null,
     /** Коли знято дані (мс); з хмари — час на хабі. */
     val time: Long = System.currentTimeMillis(),
     /** true — дані прийшли з хмари (хаб удома), а не напряму з інвертора. */
@@ -38,6 +40,7 @@ object Deye {
     private const val START = 150
     private const val COUNT = 41 // 150..190
     private const val REG_CAPACITY = 102 // ємність батареї, Ah
+    private const val REG_PV_TODAY = 108 // генерація за сьогодні, 0.1 кВт·год
     private const val REG_TEMP = 90 // 90 — DC-трансформатор, 91 — радіатор; 0.1 °C зі зсувом 1000
 
     /** Спершу напряму з інвертора; якщо не вдалось (поза домом) — з хмари від хаба. */
@@ -73,6 +76,7 @@ object Deye {
                 val t = regs(p, REG_TEMP, 2, timeoutMs)
                 maxOf(t[0], t[1]).let { (it - 1000) / 10.0 }
             }.getOrNull()?.takeIf { it > -40 && it < 150 },
+            pvTodayKWh = runCatching { regs(p, REG_PV_TODAY, 1, timeoutMs)[0] / 10.0 }.getOrNull(),
         )
     }
 
@@ -147,6 +151,10 @@ class Prefs(ctx: Context) {
     var cloudKey: String
         get() = sp.getString("cloudKey", "") ?: ""
         set(v) = sp.edit().putString("cloudKey", v).apply()
+    /** Показувати у віджеті сонячну генерацію (є сонячні панелі). */
+    var showSolar: Boolean
+        get() = sp.getBoolean("showSolar", false)
+        set(v) = sp.edit().putBoolean("showSolar", v).apply()
     val cloudReady get() = cloudUrl.startsWith("https://") && cloudKey.length >= 24
     val configured get() = host.isNotBlank() || (!hub && cloudReady)
 }
