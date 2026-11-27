@@ -34,8 +34,8 @@ class SettingsActivity : Activity() {
 
         root.addView(TextView(this).apply { text = "Home Power — інвертор Deye"; textSize = 20f })
         val updateBtn = Button(this).apply {
-            text = "Версія ${Updater.currentName(this@SettingsActivity)} · перевірити оновлення"
-            setOnClickListener { checkUpdate(this, install = false) }
+            text = "Check version · ${Updater.currentName(this@SettingsActivity)}"
+            setOnClickListener { checkUpdate(this) }
         }
         root.addView(updateBtn, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         label("Підключення")
@@ -150,11 +150,10 @@ class SettingsActivity : Activity() {
             text = "Додай віджет «Home Power» на головний екран. Тап по віджету — оновлення даних."
         })
         setContentView(ScrollView(this).apply { addView(root) })
-        checkUpdate(updateBtn, install = intent.getBooleanExtra(Updater.EXTRA_INSTALL, false))
     }
 
-    /** Перевіряє GitHub; якщо є нова версія — кнопка стає «Встановити», а з install=true ставить одразу. */
-    private fun checkUpdate(btn: Button, install: Boolean) {
+    /** Перевіряє GitHub; якщо є нова версія — одразу завантажує і ставить її. */
+    private fun checkUpdate(btn: Button) {
         btn.isEnabled = false
         btn.text = "Перевіряю оновлення…"
         Thread {
@@ -163,31 +162,27 @@ class SettingsActivity : Activity() {
                 btn.isEnabled = true
                 val remote = r.getOrNull()
                 when {
-                    r.isFailure -> btn.text = "Версія ${Updater.currentName(this)} · не вдалось перевірити оновлення"
-                    remote == null -> btn.text = "Версія ${Updater.currentName(this)} · актуальна"
-                    else -> {
-                        btn.text = "⬆ Встановити оновлення ${remote.name}"
-                        btn.setOnClickListener { installUpdate(btn) }
-                        if (install) installUpdate(btn)
-                    }
+                    r.isFailure -> btn.text = "Check version · ${Updater.currentName(this)} · немає зв'язку з GitHub"
+                    remote == null -> btn.text = "Check version · ${Updater.currentName(this)} · актуальна ✓"
+                    else -> installUpdate(btn, remote.name)
                 }
             }
         }.start()
     }
 
-    private fun installUpdate(btn: Button) {
+    private fun installUpdate(btn: Button, name: String) {
         if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
             android.widget.Toast.makeText(this, "Дозволь Home Power встановлювати застосунки й натисни ще раз", android.widget.Toast.LENGTH_LONG).show()
             runCatching { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
             return
         }
         btn.isEnabled = false
-        btn.text = "Завантажую оновлення…"
+        btn.text = "Завантажую версію $name…"
         Thread {
             val r = runCatching { Updater.downloadAndInstall(this) }
             runOnUiThread {
                 btn.isEnabled = true
-                btn.text = if (r.isSuccess) "Встановлюю… (підтверди, якщо система спитає)" else "Помилка: ${r.exceptionOrNull()?.message}"
+                btn.text = if (r.isSuccess) "Встановлюю $name… (підтверди, якщо система спитає)" else "Помилка: ${r.exceptionOrNull()?.message}"
             }
         }.start()
     }

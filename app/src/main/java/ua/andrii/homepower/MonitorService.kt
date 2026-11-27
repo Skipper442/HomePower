@@ -85,7 +85,6 @@ class MonitorService : Service() {
             } catch (e: Exception) {
                 // поза домашньою мережею — тихо чекаємо наступного опитування
             }
-            runCatching { Updater.backgroundCheck(this) }
             try { Thread.sleep(if (p.hub) HUB_INTERVAL_MS else INTERVAL_MS) } catch (e: InterruptedException) { break }
         }
     }

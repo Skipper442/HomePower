@@ -1,8 +1,5 @@
 package ua.andrii.homepower
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -14,13 +11,9 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Оновлення «по повітрю» з релізу на GitHub. */
+/** Оновлення «по повітрю» з релізу на GitHub — тільки за кнопкою в застосунку. */
 object Updater {
     private const val BASE = "https://github.com/Skipper442/HomePower/releases/download/latest/"
-    private const val CH_UPDATE = "updates"
-    private const val ID_UPDATE = 3
-    const val EXTRA_INSTALL = "install_update"
-    private const val CHECK_EVERY_MS = 6 * 60 * 60 * 1000L
 
     data class Remote(val code: Long, val name: String)
 
@@ -36,14 +29,6 @@ object Updater {
         val j = JSONObject(get(BASE + "version.json").decodeToString())
         val r = Remote(j.getLong("versionCode"), j.optString("versionName"))
         return if (r.code > currentCode(ctx)) r else null
-    }
-
-    /** Чи можна ставити без підтвердження (Android 12+, і попереднє оновлення ставив сам Home Power). */
-    fun canInstallSilently(ctx: Context): Boolean {
-        if (Build.VERSION.SDK_INT < 31) return false
-        return runCatching {
-            ctx.packageManager.getInstallSourceInfo(ctx.packageName).installingPackageName == ctx.packageName
-        }.getOrDefault(false)
     }
 
     /** Завантажує APK і передає системі на встановлення. */
@@ -63,32 +48,6 @@ object Updater {
             val pi = PendingIntent.getBroadcast(app, id, Intent(app, UpdateReceiver::class.java), flags)
             s.commit(pi.intentSender)
         }
-    }
-
-    /** Фонова перевірка (з моніторингу), не частіше ніж раз на 6 год. */
-    fun backgroundCheck(ctx: Context) {
-        val sp = ctx.getSharedPreferences("cfg", Context.MODE_PRIVATE)
-        val now = System.currentTimeMillis()
-        if (now - sp.getLong("lastUpdateCheck", 0L) < CHECK_EVERY_MS) return
-        sp.edit().putLong("lastUpdateCheck", now).apply()
-        val r = runCatching { check(ctx) }.getOrNull() ?: return
-        if (canInstallSilently(ctx)) runCatching { downloadAndInstall(ctx) }.onFailure { notifyUpdate(ctx, r) }
-        else notifyUpdate(ctx, r)
-    }
-
-    private fun notifyUpdate(ctx: Context, r: Remote) {
-        val nm = ctx.getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CH_UPDATE, "Оновлення застосунку", NotificationManager.IMPORTANCE_DEFAULT))
-        val open = PendingIntent.getActivity(ctx, 1,
-            Intent(ctx, SettingsActivity::class.java).putExtra(EXTRA_INSTALL, true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        nm.notify(ID_UPDATE, Notification.Builder(ctx, CH_UPDATE)
-            .setSmallIcon(R.drawable.ic_bolt)
-            .setContentTitle("Доступне оновлення Home Power ${r.name}")
-            .setContentText("Натисни, щоб встановити")
-            .setContentIntent(open)
-            .setAutoCancel(true)
-            .build())
     }
 
     private fun get(u: String): ByteArray {
