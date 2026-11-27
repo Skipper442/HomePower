@@ -57,7 +57,7 @@ class SettingsActivity : Activity() {
         }
         root.addView(TextView(this).apply {
             textSize = 12f; setTextColor(Color.GRAY)
-            text = "Працює у фоні, поки телефон у домашній Wi-Fi: опитує інвертор кожні 30 с і заодно оновлює віджет. Трохи більше витрачає заряд телефона."
+            text = "Працює у фоні де завгодно: вдома бере дані напряму з інвертора, поза домом — з хмари від хаба. Опитує кожні 30 с і заодно оновлює віджет. Трохи більше витрачає заряд телефона."
         })
         label("Доступ звідусіль (Firebase)")
         val cloudUrl = field("URL бази, https://…firebasedatabase.app", p.cloudUrl, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
